@@ -4,24 +4,16 @@
 ###                               ###
 #####################################
 
-    # Check and alert when a newer version is available
-    updateChecker: true
-    # Message admins as they log in if a new version is available
-    notifyAdmin: true
-    # The name of the block to be used as fuel
+    # The name of the material to be used as fuel (must be a valid Bukkit Material name)
     fuelBlock: "BLAZE_ROD"
     # What users will be told is fuel
     fuelName: "Blaze Rod"
-    # If you don't know what this is, leave it as 0
-    fuelSubdata: 0
     # The time in seconds each block of fuel will last
     fuelTime: 60
-    # The name of the block to be used as fuel for VIPs
+    # The name of the material to be used as fuel for VIPs
     VIPBlock: "COAL"
     # What VIP users will be told is fuel
     VIPName: "Coal"
-    # If you don't know what this is, leave it as 0
-    VIPSubdata: 0
     # The time in seconds each block of fuel will last for VIPs
     VIPTime: 120
     # Amount of fuel to use while grounded (0.5 = half, 1 = full, etc)

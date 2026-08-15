@@ -1,5 +1,6 @@
 name: BlazeFly
-version: 3.2
+version: ${project.version}
+api-version: '26.2'
 author: bradleyjh@outlook.com
 description: Provides the ability to fly at the cost of fuel
 main: com.bradleyjh.blazefly.Main
@@ -27,7 +28,7 @@ commands:
 permissions:
     blazefly.use:
         description: Allows the use of /fly & /bfly
-        default: op
+        default: true
     blazefly.flyspeed:
         description: Allows the use of /flyspeed
         default: op
@@ -48,7 +49,4 @@ permissions:
         default: op
     blazefly.reload:
         description: Allows the use of /bfreload
-        default: op
-    blazefly.updates:
-        description: Player will be messaged when new versions are available
         default: op

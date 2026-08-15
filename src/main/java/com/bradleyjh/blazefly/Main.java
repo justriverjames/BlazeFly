@@ -19,6 +19,7 @@ package com.bradleyjh.blazefly;
 
 import java.util.HashMap;
 import java.io.File;
+import org.bukkit.Material;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.event.Listener;
 import org.bukkit.entity.Player;
@@ -28,6 +29,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.GameMode;
@@ -35,8 +37,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 public class Main extends JavaPlugin implements Listener {
     Core core = new Core();
-    String updateAvailable;
-    
+
     public void onEnable() {
         saveDefaultConfig();
         core.stringsFile = new File(getDataFolder() + File.separator + "strings.yml");
@@ -44,18 +45,27 @@ public class Main extends JavaPlugin implements Listener {
         core.strings = YamlConfiguration.loadConfiguration(core.stringsFile);
         core.playersFile = new File(getDataFolder() + File.separator + "players.yml");
         core.players = YamlConfiguration.loadConfiguration(core.playersFile);
-        
+
         core.retrieveAll();
         core.disabledWorlds = getConfig().getStringList("disabledWorlds");
+        validateFuelMaterials();
         getServer().getPluginManager().registerEvents(this, this);
-        if (getConfig().getBoolean("updateChecker")) {
-            getServer().getScheduler().runTaskAsynchronously(this, new Updater(this, getDescription().getVersion()));
-        }
-        getServer().getScheduler().scheduleSyncRepeatingTask(this, new Timer(this), 10L, 10L);
+        getServer().getScheduler().runTaskTimer(this, new Timer(this), 10L, 10L);
     }
-    
+
     public void onDisable() {
         core.storeAll();
+    }
+
+    // config.yml lets an admin type any string for fuelBlock/VIPBlock - warn loudly
+    // rather than let a typo silently break fuel detection at runtime
+    private void validateFuelMaterials() {
+        if (Material.matchMaterial(getConfig().getString("fuelBlock")) == null) {
+            getLogger().warning("config.yml: '" + getConfig().getString("fuelBlock") + "' is not a valid material for fuelBlock");
+        }
+        if (Material.matchMaterial(getConfig().getString("VIPBlock")) == null) {
+            getLogger().warning("config.yml: '" + getConfig().getString("VIPBlock") + "' is not a valid material for VIPBlock");
+        }
     }
 
     // Replaces the deprecated getServer().getPlayer()
@@ -65,31 +75,24 @@ public class Main extends JavaPlugin implements Listener {
         }
         return null;
     }
-    
+
     // Check permissions
     public boolean hasPermission (CommandSender sender, String permission) {
-        if (sender.hasPermission("blazefly." + permission)) { return true; }
-        return false;
+        return sender.hasPermission("blazefly." + permission);
     }
-    
-    // Get the fuel block currently used
-    public String fuelBlock(Player player) {
-        if (hasPermission(player, "vip")) { return getConfig().getString("VIPBlock").toUpperCase(); }
-        else { return getConfig().getString("fuelBlock").toUpperCase(); }
+
+    // Get the fuel material currently used
+    public Material fuelBlock(Player player) {
+        String name = hasPermission(player, "vip") ? getConfig().getString("VIPBlock") : getConfig().getString("fuelBlock");
+        return Material.matchMaterial(name);
     }
-    
-    // Get the fuel subdata currently used
-    public Integer fuelSubdata(Player player) {
-        if (hasPermission(player, "vip")) { return getConfig().getInt("VIPSubdata"); }
-        else { return getConfig().getInt("fuelSubdata"); }
-    }
-    
+
     // Get the time each fuel block should last (-1 because Timer adds a second at 0)
     public Double fuelTime(Player player) {
         if (hasPermission(player, "vip")) { return getConfig().getDouble("VIPTime") - 1; }
         else { return getConfig().getDouble("fuelTime") - 1; }
     }
-    
+
     // Make sure the gamemode is applicable for BlazeFly
     public Boolean correctMode (Player player) {
         if (player.getGameMode() == GameMode.SURVIVAL) { return true; }
@@ -99,7 +102,7 @@ public class Main extends JavaPlugin implements Listener {
 
     // Process incoming commands
     public boolean onCommand(CommandSender sender, Command cmd, String commandLabel, String[] args) {
-        
+
         // Reload the configuration file
         if (commandLabel.equalsIgnoreCase("bfreload")) {
             if (! hasPermission(sender, "reload")) {
@@ -110,6 +113,7 @@ public class Main extends JavaPlugin implements Listener {
             core.stringsFile = new File(getDataFolder() + File.separator + "strings.yml");
             core.strings = YamlConfiguration.loadConfiguration(core.stringsFile);
             core.disabledWorlds = getConfig().getStringList("disabledWorlds");
+            validateFuelMaterials();
             core.messagePlayer(sender, "reload", null);
             return true;
         }
@@ -151,7 +155,7 @@ public class Main extends JavaPlugin implements Listener {
             return true;
         }
         Player player = (Player)sender;
-        
+
         // If they aren't in the correct mode, ignore commands
         if (! correctMode(player)) {
             core.messagePlayer(player, "mode", null);
@@ -195,17 +199,17 @@ public class Main extends JavaPlugin implements Listener {
                 }
 
                 // Regular and VIP players
-                if (core.hasFuel(player, fuelBlock(player), fuelSubdata(player)) || core.hasFuelCount(player)) {
+                if (core.hasFuel(player, fuelBlock(player)) || core.hasFuelCount(player)) {
                     core.messagePlayer(player, "fEnabled", null);
                     core.setFlying(player, true);
                     player.setAllowFlight(true);
-                    
+
                     if (! core.hasFuelCount(player)) {
                         core.increaseFuelCount(player, fuelTime(player));
-                        core.removeFuel(player, fuelBlock(player), fuelSubdata(player));
+                        core.removeFuel(player, fuelBlock(player));
                     }
-                    
-                    if (! core.hasFuel(player, fuelBlock(player), fuelSubdata(player))) {
+
+                    if (! core.hasFuel(player, fuelBlock(player))) {
                         core.messagePlayer(player, "fLast", null);
                     }
                 }
@@ -227,7 +231,7 @@ public class Main extends JavaPlugin implements Listener {
                 core.messagePlayer(player, "permission", null);
                 return true;
             }
-            if (getConfig().getString("allowSpeed").equalsIgnoreCase("false")) {
+            if (! getConfig().getBoolean("allowSpeed")) {
                 core.messagePlayer(player, "fsDisabled", null);
                 return true;
             }
@@ -266,12 +270,12 @@ public class Main extends JavaPlugin implements Listener {
                     core.messagePlayer(player, "fs4", null);
                     return true;
                 }
-                
+
                 core.messagePlayer(player, "fsOptions", null);
                 return true;
             }
         }
-        
+
         // Fuel command to check how many seconds of fuel are remaining
         if (commandLabel.equalsIgnoreCase("fuel")) {
             if (! hasPermission(player, "use")) {
@@ -279,7 +283,7 @@ public class Main extends JavaPlugin implements Listener {
                 return true;
             }
             if (args.length > 0) { return false; }
-        
+
             if (! core.hasFuelCount(player)) {
                 if (hasPermission(player, "nofuel")) {
                     core.messagePlayer(player, "fuelNA", null);
@@ -293,6 +297,7 @@ public class Main extends JavaPlugin implements Listener {
 
             HashMap<String, String> keywords = new HashMap<>();
             Integer flySpeed = Math.round(player.getFlySpeed() * 10);
+            if (flySpeed <= 0) { flySpeed = 1; } // guard div-by-zero if something external sets flyspeed to 0
             Double rawSeconds = core.getFuelCount(player) / flySpeed;
             Integer roundSeconds = Math.round(rawSeconds.longValue());
             keywords.put("%seconds%", roundSeconds.toString());
@@ -332,27 +337,32 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    // Reset flyspeed & message admins for new versions
+    // Reset flyspeed & restore any saved flight state
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event){
         Player player = event.getPlayer();
         player.setFlySpeed(0.1F);
 
         core.retrievePlayer(player);
-        
-        if (hasPermission(player, "updates") && updateAvailable != null) {
-            String header = getConfig().getString("header");
-            String message = header + updateAvailable + " is available for download";
-            player.sendMessage(ChatColor.translateAlternateColorCodes('&', message));
-        }
     }
-    
+
+    // Persist and clear state immediately rather than waiting for the
+    // Timer to notice the player went offline (that only ever caught
+    // players who were mid-flight; anyone with only a broken-wings or
+    // falling entry leaked in memory forever)
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        core.storePlayer(player);
+        core.clearPlayer(player);
+    }
+
     // Clear broken wing counter if player dies
     @EventHandler
     public void onDeath(PlayerDeathEvent event) {
         if ((event.getEntity() instanceof Player)) {
             Player player = (Player)event.getEntity();
-        
+
             if (core.isBroken(player)) {
                 core.removeBroken(player);
                 player.setAllowFlight(true);
@@ -361,20 +371,26 @@ public class Main extends JavaPlugin implements Listener {
             }
         }
     }
-    
+
     // Prevent flight toggle for mode switch
     @EventHandler
     public void onGameMode(PlayerGameModeChangeEvent event) {
-        if (event.getNewGameMode() == GameMode.SURVIVAL || event.getNewGameMode() == GameMode.ADVENTURE) {
-            if (core.isFlying(event.getPlayer())) {
-                final Player player = event.getPlayer();
-                getServer().getScheduler().scheduleSyncDelayedTask(this, new Runnable() {
-                    public void run() {
-                        player.setAllowFlight(true);
-                        player.getPlayer().setFlying(true);
-                    }
-                }, 2L);
-            }
+        if (event.getNewGameMode() != GameMode.SURVIVAL && event.getNewGameMode() != GameMode.ADVENTURE) { return; }
+        if (! core.isFlying(event.getPlayer())) { return; }
+
+        final Player player = event.getPlayer();
+
+        // Re-check eligibility rather than trusting the stale flag - otherwise a
+        // creative -> survival round-trip (e.g. an admin toggling gamemode) hands
+        // back flight for free with no fuel check
+        if (core.isBroken(player) || (! hasPermission(player, "nofuel") && ! core.hasFuelCount(player))) {
+            core.setFlying(player, false);
+            return;
         }
+
+        getServer().getScheduler().runTaskLater(this, () -> {
+            player.setAllowFlight(true);
+            player.setFlying(true);
+        }, 2L);
     }
 }
