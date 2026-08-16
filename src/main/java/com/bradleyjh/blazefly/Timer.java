@@ -73,10 +73,12 @@ public class Timer implements Runnable {
             // Check and update the players fuel counter
             if (main.core.isFlying(player) && ! main.hasPermission(player, "nofuel")) {
                 if (! main.core.hasFuelCount(player)) {
-                        if (main.core.hasFuel(player, main.fuelBlock(player))) {
-                            main.core.increaseFuelCount(player, main.fuelTime(player));
-                            main.core.removeFuel(player, main.fuelBlock(player));
-                            if (! main.core.hasFuel(player, main.fuelBlock(player))) { main.core.messagePlayer(player, "fLast", null); }
+                        FuelType fuel = main.core.findFuel(player, main.fuels);
+                        if (fuel != null) {
+                            // -1 because Timer adds a second back at 0
+                            main.core.increaseFuelCount(player, fuel.seconds() - 1);
+                            main.core.removeFuel(player, fuel.material());
+                            if (main.core.findFuel(player, main.fuels) == null) { main.core.messagePlayer(player, "fLast", null); }
                         }
                         else {
                             main.core.messagePlayer(player, "fOut", null);

@@ -17,7 +17,10 @@
 
 package com.bradleyjh.blazefly;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.io.File;
 import org.bukkit.Material;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -37,6 +40,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 public class Main extends JavaPlugin implements Listener {
     Core core = new Core();
+    List<FuelType> fuels = new ArrayList<>();
 
     public void onEnable() {
         saveDefaultConfig();
@@ -48,7 +52,7 @@ public class Main extends JavaPlugin implements Listener {
 
         core.retrieveAll();
         core.disabledWorlds = getConfig().getStringList("disabledWorlds");
-        validateFuelMaterials();
+        loadFuels();
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getScheduler().runTaskTimer(this, new Timer(this), 10L, 10L);
     }
@@ -57,15 +61,33 @@ public class Main extends JavaPlugin implements Listener {
         core.storeAll();
     }
 
-    // config.yml lets an admin type any string for fuelBlock/VIPBlock - warn loudly
-    // rather than let a typo silently break fuel detection at runtime
-    private void validateFuelMaterials() {
-        if (Material.matchMaterial(getConfig().getString("fuelBlock")) == null) {
-            getLogger().warning("config.yml: '" + getConfig().getString("fuelBlock") + "' is not a valid material for fuelBlock");
+    // Parse config.yml's `fuels` priority list, skipping (and warning about)
+    // any entry with a missing field or an invalid material name rather than
+    // letting a typo silently break fuel detection at runtime
+    private void loadFuels() {
+        List<FuelType> loaded = new ArrayList<>();
+        for (Map<?, ?> entry : getConfig().getMapList("fuels")) {
+            Object materialName = entry.get("material");
+            Object name = entry.get("name");
+            Object seconds = entry.get("seconds");
+            if (materialName == null || name == null || seconds == null) {
+                getLogger().warning("config.yml: skipping malformed fuels entry (needs material, name, seconds): " + entry);
+                continue;
+            }
+
+            Material material = Material.matchMaterial(materialName.toString());
+            if (material == null) {
+                getLogger().warning("config.yml: '" + materialName + "' is not a valid material in the fuels list");
+                continue;
+            }
+
+            loaded.add(new FuelType(material, name.toString(), ((Number) seconds).doubleValue()));
         }
-        if (Material.matchMaterial(getConfig().getString("VIPBlock")) == null) {
-            getLogger().warning("config.yml: '" + getConfig().getString("VIPBlock") + "' is not a valid material for VIPBlock");
+
+        if (loaded.isEmpty()) {
+            getLogger().warning("config.yml: no valid fuels configured - flight will only work for players with blazefly.nofuel");
         }
+        fuels = loaded;
     }
 
     // Replaces the deprecated getServer().getPlayer()
@@ -79,18 +101,6 @@ public class Main extends JavaPlugin implements Listener {
     // Check permissions
     public boolean hasPermission (CommandSender sender, String permission) {
         return sender.hasPermission("blazefly." + permission);
-    }
-
-    // Get the fuel material currently used
-    public Material fuelBlock(Player player) {
-        String name = hasPermission(player, "vip") ? getConfig().getString("VIPBlock") : getConfig().getString("fuelBlock");
-        return Material.matchMaterial(name);
-    }
-
-    // Get the time each fuel block should last (-1 because Timer adds a second at 0)
-    public Double fuelTime(Player player) {
-        if (hasPermission(player, "vip")) { return getConfig().getDouble("VIPTime") - 1; }
-        else { return getConfig().getDouble("fuelTime") - 1; }
     }
 
     // Make sure the gamemode is applicable for BlazeFly
@@ -113,7 +123,7 @@ public class Main extends JavaPlugin implements Listener {
             core.stringsFile = new File(getDataFolder() + File.separator + "strings.yml");
             core.strings = YamlConfiguration.loadConfiguration(core.stringsFile);
             core.disabledWorlds = getConfig().getStringList("disabledWorlds");
-            validateFuelMaterials();
+            loadFuels();
             core.messagePlayer(sender, "reload", null);
             return true;
         }
@@ -198,26 +208,25 @@ public class Main extends JavaPlugin implements Listener {
                     return true;
                 }
 
-                // Regular and VIP players
-                if (core.hasFuel(player, fuelBlock(player)) || core.hasFuelCount(player)) {
+                FuelType fuel = core.findFuel(player, fuels);
+                if (fuel != null || core.hasFuelCount(player)) {
                     core.messagePlayer(player, "fEnabled", null);
                     core.setFlying(player, true);
                     player.setAllowFlight(true);
 
                     if (! core.hasFuelCount(player)) {
-                        core.increaseFuelCount(player, fuelTime(player));
-                        core.removeFuel(player, fuelBlock(player));
+                        // -1 because Timer adds a second back at 0
+                        core.increaseFuelCount(player, fuel.seconds() - 1);
+                        core.removeFuel(player, fuel.material());
                     }
 
-                    if (! core.hasFuel(player, fuelBlock(player))) {
+                    if (core.findFuel(player, fuels) == null) {
                         core.messagePlayer(player, "fLast", null);
                     }
                 }
                 else {
-                    String fuelName = getConfig().getString("fuelName");
-                    if (hasPermission(player, "vip")) { fuelName = getConfig().getString("VIPName"); }
                     HashMap<String, String> keywords = new HashMap<>();
-                    keywords.put("%fuel%", fuelName);
+                    keywords.put("%fuel%", fuels.isEmpty() ? "nothing configured" : fuels.get(0).name());
                     core.messagePlayer(player, "fRequired", keywords);
                     return true;
                 }

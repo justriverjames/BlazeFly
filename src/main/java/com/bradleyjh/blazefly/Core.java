@@ -191,16 +191,21 @@ public class Core {
         broken.remove(player.getUniqueId());
     }
 
-    // Check if the player is carrying fuel, including the off-hand slot
-    // (which PlayerInventory#getContents() does not include)
-    public Boolean hasFuel(Player player, Material material) {
+    // Find the highest-priority fuel type the player is carrying, including
+    // the off-hand slot (which PlayerInventory#getContents() does not include)
+    public FuelType findFuel(Player player, List<FuelType> fuels) {
         PlayerInventory inv = player.getInventory();
-        if (inv.getItemInOffHand().getType() == material) { return true; }
+        Material offhand = inv.getItemInOffHand().getType();
+        ItemStack[] contents = inv.getContents();
 
-        for (ItemStack stack : inv.getContents()) {
-            if (stack != null && stack.getType() == material) { return true; }
+        for (FuelType fuel : fuels) {
+            if (fuel.material() == offhand) { return fuel; }
+
+            for (ItemStack stack : contents) {
+                if (stack != null && stack.getType() == fuel.material()) { return fuel; }
+            }
         }
-        return false;
+        return null;
     }
 
     // Remove one fuel item from the player, checking off-hand first

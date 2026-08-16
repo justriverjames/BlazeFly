@@ -32,9 +32,6 @@ permissions:
     blazefly.flyspeed:
         description: Allows the use of /flyspeed
         default: op
-    blazefly.vip:
-        description: User gets VIP fuel rate
-        default: op
     blazefly.flyoff:
         description: Allows the use of /flyoff
         default: op

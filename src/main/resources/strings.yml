@@ -23,7 +23,7 @@
     fEnabled: "Flight enabled"
     fResumed: "Flight has resumed"
     fDisabled: "Flight disabled"
-    fRequired: "Flight requires fuel (%fuel%)"
+    fRequired: "Flight requires fuel - try %fuel%"
     fLast: "WARNING: You are now on your last block of fuel!"
     fOut: "You are out of fuel, flight has been disabled"
 

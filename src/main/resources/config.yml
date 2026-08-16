@@ -4,23 +4,36 @@
 ###                               ###
 #####################################
 
-    # The name of the material to be used as fuel (must be a valid Bukkit Material name)
-    fuelBlock: "BLAZE_ROD"
-    # What users will be told is fuel
-    fuelName: "Blaze Rod"
-    # The time in seconds each block of fuel will last
-    fuelTime: 60
-    # The name of the material to be used as fuel for VIPs
-    VIPBlock: "COAL"
-    # What VIP users will be told is fuel
-    VIPName: "Coal"
-    # The time in seconds each block of fuel will last for VIPs
-    VIPTime: 120
+    # Fuel items, in priority order. When a player needs to burn fuel, BlazeFly
+    # checks their inventory against this list top to bottom and burns the
+    # first material it finds - so put your preferred/most efficient fuel
+    # first, and cheaper fallback fuels after it. Materials must be valid
+    # Bukkit Material names; seconds are how long one item of that material
+    # lasts (these defaults match vanilla furnace burn times).
+    fuels:
+        - material: "LAVA_BUCKET"
+          name: "Lava Bucket"
+          seconds: 1000
+        - material: "BLAZE_ROD"
+          name: "Blaze Rod"
+          seconds: 120
+        - material: "COAL_BLOCK"
+          name: "Block of Coal"
+          seconds: 800
+        - material: "COAL"
+          name: "Coal"
+          seconds: 80
+        - material: "CHARCOAL"
+          name: "Charcoal"
+          seconds: 80
+        - material: "OAK_PLANKS"
+          name: "Oak Planks"
+          seconds: 15
     # Amount of fuel to use while grounded (0.5 = half, 1 = full, etc)
     groundFuel: 0.25
     # Enables the use of /flyspeed to modify the flight speed
     allowSpeed: true
-    # Flying fast will cost more fuel (eg. 2x speed halves fuelTime)
+    # Flying fast will cost more fuel (eg. 2x speed halves how long a fuel item lasts)
     speedFuel: true
     # Flight will be disabled for a user if they take any damage
     breakableWings: true
